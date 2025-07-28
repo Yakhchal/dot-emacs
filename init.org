@@ -1,0 +1,308 @@
+* init.el
+:PROPERTIES:
+:header-args: :tangle init.el
+:END:
+** Core
+*** Base Emacs setup
+#+begin_src elisp
+  ;;; -*- lexical-binding: t; -*-
+  (require 'package)
+  (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+  (unless (package-installed-p 'use-package)
+    (package-install 'use-package))
+
+  (use-package emacs
+    :custom
+    (enable-recursive-minibuffers t)
+    (completion-ignore-case t)
+    (debug-on-error t)
+    (warning-minimum-level :error))
+#+end_src
+*** Standard cosmetic modifications
+#+begin_src elisp
+  ;;; Core Emacs configuration
+  (tool-bar-mode -1)
+  (scroll-bar-mode -1)
+  (menu-bar-mode -1)
+  (blink-cursor-mode -1)
+  (minibuffer-depth-indicate-mode 1)
+  (global-hl-line-mode 1)
+#+end_src
+*** User-Based Cosmetics
+#+begin_src elisp
+  (use-package ef-themes
+    :ensure t
+    :config
+    (load-theme 'ef-melissa-light t))
+#+end_src
+*** Convenience bindings
+#+begin_src elisp
+  (global-set-key (kbd "C-c b") (function eval-buffer))
+  (global-set-key (kbd "C-c m i") (lambda ()
+  				  (if (string-equal (file-name-extension user-init-file) "el")
+  				      (find-file user-init-file)
+  				    (message "The init file isn't an elisp file!"))))
+  (global-set-key (kbd "C-c m o") (lambda ()
+  				  (let (
+  					(init-org-filename (concat user-emacs-directory "init.org"))
+  					)
+  				    (if (file-exists-p init-org-filename)
+  					(find-file init-org-filename)
+  				      (message "The init org file cannot be found.")))))
+  (global-set-key (kbd "C-c m b") (lambda ()
+  				  (if (string-equal (file-name-extension user-init-file) "el")
+  				      (with-current-buffer (find-file-noselect user-init-file)
+  					(eval-buffer))
+  				    (message "Valid init.el file cannot be found!"))))
+#+end_src
+*** Completion goodies
+#+begin_src elisp
+  (use-package vertico
+    :ensure t
+    :config
+    (vertico-mode))
+
+  (use-package marginalia
+    :ensure t
+    :config
+    (marginalia-mode))
+#+end_src
+*** Setup-Related Snippets
+This is where snippets of elisp that I plan to use within configuration for other packages will go.
+#+begin_src elisp
+    (defun check-for-package (package-name)
+    "Query underlying OS package manager for the presence of PACKAGE-NAME.
+  Returns nil if the package is not installed, and non-nil if it is.
+  If the system is Windows, it makes the assumption that MSYS2 is installed, and its bin is in PATH."
+    (let (
+  	(package-manager-cmd nil)
+  	(pkg-man-error-msg-str nil)
+  	)
+      (if (eq system-type 'gnu/linux)
+  	(let* (
+  	       (os-release-file-contents (with-temp-buffer (insert-file-contents "/etc/os-release") (buffer-string)))
+  	      (distro (funcall (lambda (os-str)
+  				 (string-match "\"[^\"]*\"" os-release-file-contents) ;;; Thank god for re-builder
+  				 (match-string 0 os-release-file-contents))
+  			       (with-temp-buffer
+  				 (insert-file-contents "/etc/os-release")
+  				 (buffer-string))))
+  	      )
+  	  (cond
+  	   ((string-match-p "Arch Linux" distro)
+  	    (setq package-manager-cmd "pacman -Q "
+  		  pkg-man-error-msg-str "error: package"))
+  	   ((string-match-p "Debian" distro)
+  	    (setq package-manager-cmd "apt show "
+  		  pkg-man-error-msg-str "Unable to locate package"))
+  	   )
+  	  )
+        (setq package-manager-cmd "pacman -Q "
+  	    pkg-man-error-msg-str "error: package"))
+      (not (string-match (regexp-quote pkg-man-error-msg-str) (shell-command-to-string (concat package-manager-cmd package-name))))
+      ))
+
+  (defun shell-command-check (cmd expected-out)
+    "Calls CMD, then checks the output for EXPECTED-OUT.
+  If it's present, return the output, else return nil."
+    (let (
+  	(cmd-ret (shell-command-to-string cmd))
+  	)
+      (when (string-match-p (regexp-quote expected-out) cmd-ret)
+        cmd-ret
+        )
+      )
+    )
+#+end_src
+** Formal
+*** Org-mode set up
+Even though org-mode isn't exclusively for study/office work, I still think it's best to
+configure it within this section.
+#+begin_src elisp
+  (use-package org-mode
+    :hook (org-mode . org-indent-mode)
+    :custom
+    (org-startup-folded 'fold)
+    (org-startup-with-inline-images t)
+    (org-todo-keywords `(
+  		       (sequence "TODO" "|" "DONE")
+  		       (sequence "IMPORTANT" "|" "ACCOMPLISHED")))
+    (org-todo-keyword-faces `(
+  			    ("IMPORTANT" . "crimson")
+  			    ("ACCOMPLISHED" . "forest green")
+  			    ("DONE" . "forest green")))
+    )
+#+end_src
+*** LaTeX inline rendering
+#+begin_src elisp
+  (use-package xenops
+    :ensure t
+    :custom
+    (xenops-math-image-current-scale-factor 1.5)
+    :bind (
+  	   (:map xenops-mode-map
+  	      ("C-c m r" . xenops-render)
+  	      ("C-c m u" . xenops-reveal))
+  	   (:map org-mode-map 
+  	    ("C-c x" . xenops-mode))
+  	   )
+    )
+#+end_src
+*** Org-roam note taking
+#+begin_src elisp
+    (use-package org-roam
+      :ensure t
+      :custom
+      (org-roam-directory (expand-file-name "~/life/note-pool/"))
+      :bind ((:map org-mode-map
+    	       ("C-c r f" . org-roam-node-find)
+    	       ("C-c r s" . org-roam-db-sync)))
+      )
+#+end_src
+** Programming
+*** Overarching
+#+begin_src elisp
+  (use-package magit
+    :ensure t
+    :defer t)
+  (use-package forge
+    :ensure t
+    :after magit)
+
+  (use-package disproject
+    :vc (disproject
+         :url "https://github.com/aurtzy/disproject"
+         :branch "master")
+    :bind (:map ctl-x-map
+  	      ("p" . disproject-dispatch)))
+    
+    (use-package devdocs
+      :ensure t)
+#+end_src
+*** C
+#+begin_src elisp
+    (unless (file-exists-p (concat devdocs-data-dir "/c"))
+        (devdocs-install "c"))
+    (add-hook 'c-mode-hook 'eglot-ensure)
+
+    (use-package rmsbolt
+      :ensure t
+      :bind ((:map c-mode-map
+    	       ("C-c r" . rmsbolt))
+    	 (:map c++-mode-map
+    	       ("C-c r" . rmsbolt))))
+
+    (require 'cc-mode)
+
+  (use-package gdb-mi
+      :custom
+      (gdb-many-windows t)
+      (gdb-show-maint t))
+    
+    (defun quick-dbg ()
+      "Calls 'GDB' interactively as you would via M-x."
+      (interactive)
+      (if (executable-find "gdb")
+          (prog1 (call-interactively 'gdb)
+    	(with-minibuffer-selected-window (exit-minibuffer)))
+        (message "GDB doesn't appear to be installed!")))
+    (define-key c-mode-map (kbd "C-c d" 'quick-dbg))
+    (define-key c++-mode-map (kbd "C-c d" 'quick-dbg))
+#+end_src
+*** Common Lisp
+#+begin_src elisp
+  (use-package slime
+    :ensure t
+    :commands slime
+    :init
+    (setq inferior-lisp-program "sbcl")
+    :config
+    (slime-setup))
+#+end_src
+*** Misc Smaller Languages
+#+begin_src elisp
+  (use-package powershell
+    :ensure t)
+#+end_src
+** Misc
+*** Fun
+#+begin_src elisp
+  (use-package tetris
+    :bind (:map tetris-mode-map
+  	      ("w" . tetris-rotate-prev)
+  	      ("a" . tetris-move-left)
+  	      ("s" . tetris-move-down)
+  	      ("d" . tetris-move-right)
+  	      ("e" . tetris-move-bottom)))
+  (use-package snake
+    :bind (:map snake-mode-map
+  	      ("w" . snake-move-up)
+  	      ("a" . snake-move-left)
+  	      ("s" . snake-move-down)
+  	      ("d" . snake-move-right)))
+#+end_src
+*** Communication/Viewing
+#+begin_src elisp
+  (defun gmailieer-sync ()
+    (interactive)
+    (let (
+  	(gmi-cmd-ret (shell-command-check "gmi sync" "pull:"))
+  	)
+      (if gmi-cmd-ret
+  	(message "Emails have been synced successfully!")
+        (message "Failed to sync emails."))
+      )
+    )
+
+      (use-package notmuch
+        :ensure t
+        :defer t
+        :bind (
+  	   (:map notmuch-hello-mode-map
+  		 ("C-c s" . gmailieer-sync))
+  	   (:map notmuch-search-mode-map
+  		 ("C-c s" . gmailieer-sync))
+  		 )
+        :custom
+        (notmuch-hello-mode-hook (lambda ()
+  				 (notmuchsearch "all")))
+        )
+
+      (use-package erc
+        :init
+        (require 'erc-log)
+        :commands erc
+        :custom
+        (erc-nick "yakh")
+        (erc-server "irc.libera-chat")
+        (erc-port 6667)
+        (erc-log-channels-directory "~/.emacs.d/erc-logs/")
+        (erc-save-buffer-on-part t)
+        (erc-save-queries-on-quit t)
+        (erc-log-write-after-send t)
+        (erc-log-write-after-insert t)
+        :config
+        (add-to-list 'erc-modules 'log t)
+        (erc-update-modules))
+
+      (use-package elfeed
+        :ensure t
+        :custom
+        (elfeed-feeds '(
+  		      "https://planet.emacslife.com/atom.xml"
+  		      "https://raw.githubusercontent.com/francisrstokes/githublog/main/feed.xml"
+  		      ))
+        )
+#+end_src
+*** Faster movement
+#+begin_src elisp
+  (use-package avy
+    :ensure t
+    :bind (("C-;" . avy-goto-char-2)))
+#+end_src
+*** Trying new packages
+#+begin_src elisp
+  (use-package try
+    :ensure t
+    :defer t)
+#+end_src
