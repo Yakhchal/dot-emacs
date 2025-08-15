@@ -27,6 +27,7 @@
   (blink-cursor-mode -1)
   (minibuffer-depth-indicate-mode 1)
   (global-hl-line-mode 1)
+  (add-hook 'prog-mode-hook #'display-line-numbers-mode)
 #+end_src
 *** User-Based Cosmetics
 #+begin_src elisp
@@ -37,26 +38,67 @@
 #+end_src
 *** Convenience bindings
 #+begin_src elisp
-  (global-set-key (kbd "C-c b") (function eval-buffer))
-  (global-set-key (kbd "C-c m i") (lambda ()
-  				  (if (string-equal (file-name-extension user-init-file) "el")
-  				      (find-file user-init-file)
-  				    (message "The init file isn't an elisp file!"))))
-  (global-set-key (kbd "C-c m o") (lambda ()
-  				  (let (
-  					(init-org-filename (concat user-emacs-directory "init.org"))
-  					)
-  				    (if (file-exists-p init-org-filename)
-  					(find-file init-org-filename)
-  				      (message "The init org file cannot be found.")))))
-  (global-set-key (kbd "C-c m b") (lambda ()
-  				  (if (string-equal (file-name-extension user-init-file) "el")
-  				      (with-current-buffer (find-file-noselect user-init-file)
-  					(eval-buffer))
-  				    (message "Valid init.el file cannot be found!"))))
+  (defun personal-goto-init-file ()
+    (interactive)
+    (if (string= (file-name-extension user-init-file) "el")
+        (find-file user-init-file)
+      (find-file (concat user-emacs-directory "init.el"))))
+  (defun personal-goto-init-literate-file ()
+    (interactive)
+    (find-file (concat user-emacs-directory "init.org")))
+  (defun personal-quick-init-eval ()
+    (interactive)
+    (if (string= (file-name-extension user-init-file) "el")
+        (let (
+     	    (init-file-buffer (find-file-noselect user-init-file))
+     	    )
+     	(with-current-buffer init-file-buffer
+     	  (eval-buffer))
+     	(kill-buffer init-file-buffer))
+      (message "A dynamic elisp init file was not used!")))
+  (defun personal-org-tangle-eval ()
+    "Evaluates the elisp file that the current org file tangles into.
+  Quick hack."
+    (interactive)
+    (let (
+  	(el-file-name nil)
+  	)
+      (with-current-buffer (current-buffer)
+        (save-excursion
+  	(goto-char (point-min))
+  	(setq el-file-name (buffer-substring-no-properties (search-forward ":header-args: :tangle ") (re-search-forward ".*\\.el")))))
+      (if (file-exists-p el-file-name)
+  	(let (
+  	      (el-file-buffer-maybe (get-file-buffer el-file-name))
+  	      )
+  	  (when el-file-buffer-maybe
+  	    (with-current-buffer el-file-buffer-maybe
+  	      (kill-buffer)))
+  	  (with-current-buffer (find-file-noselect el-file-name)
+  	    (eval-buffer))
+  	  )
+        (message "Could not find the tangled elisp file!")
+        )
+      )
+    )
+
+  (keymap-global-set "C-c b" #'eval-buffer)
+  (keymap-global-set "C-c o b" #'personal-org-tangle-eval)
+  (keymap-global-set "C-c m i" #'personal-goto-init-file)
+  (keymap-global-set "C-c m o" #'personal-goto-init-literate-file)
+  (keymap-global-set "C-c m b" #'personal-quick-init-eval)
+  (keymap-global-set "C-z" #'other-window)
+  (keymap-global-set "M-o" #'other-window)
 #+end_src
 *** Completion goodies
 #+begin_src elisp
+  (use-package orderless
+    :ensure t
+    :custom
+    (completion-styles '(orderless))
+    (completion-category-defaults nil)
+    )
+  
   (use-package vertico
     :ensure t
     :config
@@ -70,38 +112,6 @@
 *** Setup-Related Snippets
 This is where snippets of elisp that I plan to use within configuration for other packages will go.
 #+begin_src elisp
-    (defun check-for-package (package-name)
-    "Query underlying OS package manager for the presence of PACKAGE-NAME.
-  Returns nil if the package is not installed, and non-nil if it is.
-  If the system is Windows, it makes the assumption that MSYS2 is installed, and its bin is in PATH."
-    (let (
-  	(package-manager-cmd nil)
-  	(pkg-man-error-msg-str nil)
-  	)
-      (if (eq system-type 'gnu/linux)
-  	(let* (
-  	       (os-release-file-contents (with-temp-buffer (insert-file-contents "/etc/os-release") (buffer-string)))
-  	      (distro (funcall (lambda (os-str)
-  				 (string-match "\"[^\"]*\"" os-release-file-contents) ;;; Thank god for re-builder
-  				 (match-string 0 os-release-file-contents))
-  			       (with-temp-buffer
-  				 (insert-file-contents "/etc/os-release")
-  				 (buffer-string))))
-  	      )
-  	  (cond
-  	   ((string-match-p "Arch Linux" distro)
-  	    (setq package-manager-cmd "pacman -Q "
-  		  pkg-man-error-msg-str "error: package"))
-  	   ((string-match-p "Debian" distro)
-  	    (setq package-manager-cmd "apt show "
-  		  pkg-man-error-msg-str "Unable to locate package"))
-  	   )
-  	  )
-        (setq package-manager-cmd "pacman -Q "
-  	    pkg-man-error-msg-str "error: package"))
-      (not (string-match (regexp-quote pkg-man-error-msg-str) (shell-command-to-string (concat package-manager-cmd package-name))))
-      ))
-
   (defun shell-command-check (cmd expected-out)
     "Calls CMD, then checks the output for EXPECTED-OUT.
   If it's present, return the output, else return nil."
@@ -124,6 +134,7 @@ configure it within this section.
     :custom
     (org-startup-folded 'fold)
     (org-startup-with-inline-images t)
+    (org-return-follows-link t)
     (org-todo-keywords `(
   		       (sequence "TODO" "|" "DONE")
   		       (sequence "IMPORTANT" "|" "ACCOMPLISHED")))
@@ -132,22 +143,7 @@ configure it within this section.
   			    ("ACCOMPLISHED" . "forest green")
   			    ("DONE" . "forest green")))
     )
-#+end_src
-*** LaTeX inline rendering
-#+begin_src elisp
-  (use-package xenops
-    :ensure t
-    :custom
-    (xenops-math-image-current-scale-factor 1.5)
-    :bind (
-  	   (:map xenops-mode-map
-  	      ("C-c m r" . xenops-render)
-  	      ("C-c m u" . xenops-reveal))
-  	   (:map org-mode-map 
-  	    ("C-c x" . xenops-mode))
-  	   )
-    )
-#+end_src
+#+end_srco
 *** Org-roam note taking
 #+begin_src elisp
     (use-package org-roam
@@ -181,33 +177,43 @@ configure it within this section.
 #+end_src
 *** C
 #+begin_src elisp
-    (unless (file-exists-p (concat devdocs-data-dir "/c"))
-        (devdocs-install "c"))
-    (add-hook 'c-mode-hook 'eglot-ensure)
+  (unless (file-exists-p (concat devdocs-data-dir "/c"))
+    (devdocs-install "c"))
 
-    (use-package rmsbolt
-      :ensure t
-      :bind ((:map c-mode-map
-    	       ("C-c r" . rmsbolt))
-    	 (:map c++-mode-map
-    	       ("C-c r" . rmsbolt))))
+  (use-package rmsbolt
+    :ensure t
+    :bind ((:map c-mode-map
+       	       ("C-c r" . rmsbolt))
+       	 (:map c++-mode-map
+       	       ("C-c r" . rmsbolt))))
 
-    (require 'cc-mode)
+  (require 'cc-mode)
+  (add-hook 'c-mode-hook 'init--activate-lsp)
+  (defun c-quick-compile ()
+    "Simply compiles the active C source file."
+    (interactive)
+    (let* (
+  	 (flags "-g -Wall -Wextra -O0")
+  	 (file-name (buffer-file-name (current-buffer)))
+  	 )
+      (if (string= (file-name-extension file-name) "c")
+  	(compile (concat "gcc " file-name " " flags " -o " (file-name-sans-extension file-name)) t)
+        (message "You're not in a C buffer! Why'd you even call this function?")
+        )
+      )
+    )
+  (define-key c-mode-map (kbd "C-c c") #'c-quick-compile)
 
   (use-package gdb-mi
-      :custom
-      (gdb-many-windows t)
-      (gdb-show-maint t))
-    
-    (defun quick-dbg ()
-      "Calls 'GDB' interactively as you would via M-x."
-      (interactive)
-      (if (executable-find "gdb")
-          (prog1 (call-interactively 'gdb)
-    	(with-minibuffer-selected-window (exit-minibuffer)))
-        (message "GDB doesn't appear to be installed!")))
-    (define-key c-mode-map (kbd "C-c d" 'quick-dbg))
-    (define-key c++-mode-map (kbd "C-c d" 'quick-dbg))
+    :custom
+    (gdb-many-windows t)
+    (gdb-show-maint t)
+    (gdb-restore-window-configuration-after-quit t)
+    :bind ((:map c-mode-map
+     	       ("C-c d" . 'gdb))
+     	 (:map c++-mode-map
+     	       ("C-c d" . 'gdb)))
+    )
 #+end_src
 *** Common Lisp
 #+begin_src elisp
@@ -243,9 +249,13 @@ configure it within this section.
 #+end_src
 *** Communication/Viewing
 #+begin_src elisp
+  (defcustom gmail-directory nil
+    "Full directory wherein gmail was initialized using relevant tools.")
+
   (defun gmailieer-sync ()
     (interactive)
     (let (
+  	(default-directory gmail-directory)
   	(gmi-cmd-ret (shell-command-check "gmi sync" "pull:"))
   	)
       (if gmi-cmd-ret
@@ -254,45 +264,48 @@ configure it within this section.
       )
     )
 
-      (use-package notmuch
-        :ensure t
-        :defer t
-        :bind (
-  	   (:map notmuch-hello-mode-map
-  		 ("C-c s" . gmailieer-sync))
-  	   (:map notmuch-search-mode-map
-  		 ("C-c s" . gmailieer-sync))
-  		 )
-        :custom
-        (notmuch-hello-mode-hook (lambda ()
-  				 (notmuchsearch "all")))
-        )
+  (use-package notmuch
+    :ensure t
+    :defer t
+    :bind (
+  	 (:map notmuch-hello-mode-map
+  	       ("C-c s" . gmailieer-sync))
+  	 (:map notmuch-search-mode-map
+  	       ("C-c s")
+  	       )
+  	 )
+    :custom
+    (notmuch-hello-mode-hook (lambda ()
+  			     (notmuch-search "all")))
+    (gmail-directory "/root/gmail/")
+    )
 
-      (use-package erc
-        :init
-        (require 'erc-log)
-        :commands erc
-        :custom
-        (erc-nick "yakh")
-        (erc-server "irc.libera-chat")
-        (erc-port 6667)
-        (erc-log-channels-directory "~/.emacs.d/erc-logs/")
-        (erc-save-buffer-on-part t)
-        (erc-save-queries-on-quit t)
-        (erc-log-write-after-send t)
-        (erc-log-write-after-insert t)
-        :config
-        (add-to-list 'erc-modules 'log t)
-        (erc-update-modules))
+  (use-package erc
+    :init
+    (require 'erc-log)
+    :commands erc
+    :custom
+    (erc-nick "yakh")
+    (erc-server "irc.libera.chat")
+    (erc-port 6667)
+    (erc-log-channels-directory "~/.emacs.d/erc-logs/")
+    (erc-save-buffer-on-part t)
+    (erc-save-queries-on-quit t)
+    (erc-log-write-after-send t)
+    (erc-log-write-after-insert t)
+    :config
+    (add-to-list 'erc-modules 'log t)
+    (erc-update-modules))
 
-      (use-package elfeed
-        :ensure t
-        :custom
-        (elfeed-feeds '(
-  		      "https://planet.emacslife.com/atom.xml"
-  		      "https://raw.githubusercontent.com/francisrstokes/githublog/main/feed.xml"
-  		      ))
-        )
+  (use-package elfeed
+    :ensure t
+    :custom
+    (elfeed-feeds '(
+  		  "https://planet.emacslife.com/atom.xml"
+  		  "https://raw.githubusercontent.com/francisrstokes/githublog/main/feed.xml"
+  		  "https://joshblais.com/index.xml"
+  		  ))
+    )
 #+end_src
 *** Faster movement
 #+begin_src elisp
@@ -305,4 +318,15 @@ configure it within this section.
   (use-package try
     :ensure t
     :defer t)
+#+end_src
+*** Fuzzy-finding/Better finding with Consult
+#+begin_src elisp
+  (use-package consult
+    :ensure t)
+  (use-package affe
+    :ensure t
+    :config
+    (unless (shell-command-check "rg" "requires at least one pattern")
+      (setq affe-grep-command "grep -rZ --color=never --exclude-dir='.git' -n -v '^$' %s ."))
+    )
 #+end_src
