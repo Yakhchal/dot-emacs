@@ -323,7 +323,9 @@ configure it within this section.
 *** Fuzzy-finding/Better finding with Consult
 #+begin_src elisp
   (use-package consult
-    :ensure t)
+    :ensure t
+    :bind ("C-x C-b" . consult-buffer))
+  
   (use-package affe
     :ensure t
     :config
