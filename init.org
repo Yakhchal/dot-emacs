@@ -47,41 +47,6 @@
   (defun personal/goto-init-literate-file ()
     (interactive)
     (find-file (concat user-emacs-directory "init.org")))
-  (defun personal/quick-init-eval ()
-    (interactive)
-    (if (string= (file-name-extension user-init-file) "el")
-        (let (
-     	    (init-file-buffer (find-file-noselect user-init-file))
-     	    )
-     	(with-current-buffer init-file-buffer
-     	  (eval-buffer))
-     	(kill-buffer init-file-buffer))
-      (message "A dynamic elisp init file was not used!")))
-  (defun personal/org-tangle-eval ()
-    "Evaluates the elisp file that the current org file tangles into.
-  Quick hack."
-    (interactive)
-    (let (
-  	(el-file-name nil)
-  	)
-      (with-current-buffer (current-buffer)
-        (save-excursion
-  	(goto-char (point-min))
-  	(setq el-file-name (buffer-substring-no-properties (search-forward ":header-args: :tangle ") (re-search-forward ".*\\.el")))))
-      (if (file-exists-p el-file-name)
-  	(let (
-  	      (el-file-buffer-maybe (get-file-buffer el-file-name))
-  	      )
-  	  (when el-file-buffer-maybe
-  	    (with-current-buffer el-file-buffer-maybe
-  	      (kill-buffer)))
-  	  (with-current-buffer (find-file-noselect el-file-name)
-  	    (eval-buffer))
-  	  )
-        (message "Could not find the tangled elisp file!")
-        )
-      )
-    )
   (defun personal/set-frame-transparency ()
     "Does what it says on the tin: sets transparency of the frame."
     (interactive)
@@ -149,6 +114,7 @@
   (keymap-global-set "C-c b" #'personal/smart-eval-buffer)
   (keymap-global-set "C-c m i" #'personal/goto-init-file)
   (keymap-global-set "C-c m o" #'personal/goto-init-literate-file)
+  (keymap-global-set "C-c m t" #'personal/set-frame-transparency)
   (keymap-global-set "M-o" #'other-window)
   (keymap-global-set "C-z" #'undo)
   (keymap-global-set "C-x C-z" #'undo-redo)
