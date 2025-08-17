@@ -39,15 +39,15 @@
 #+end_src
 *** Convenience bindings
 #+begin_src elisp
-  (defun personal-goto-init-file ()
+  (defun personal/goto-init-file ()
     (interactive)
     (if (string= (file-name-extension user-init-file) "el")
         (find-file user-init-file)
       (find-file (concat user-emacs-directory "init.el"))))
-  (defun personal-goto-init-literate-file ()
+  (defun personal/goto-init-literate-file ()
     (interactive)
     (find-file (concat user-emacs-directory "init.org")))
-  (defun personal-quick-init-eval ()
+  (defun personal/quick-init-eval ()
     (interactive)
     (if (string= (file-name-extension user-init-file) "el")
         (let (
@@ -57,7 +57,7 @@
      	  (eval-buffer))
      	(kill-buffer init-file-buffer))
       (message "A dynamic elisp init file was not used!")))
-  (defun personal-org-tangle-eval ()
+  (defun personal/org-tangle-eval ()
     "Evaluates the elisp file that the current org file tangles into.
   Quick hack."
     (interactive)
@@ -82,14 +82,76 @@
         )
       )
     )
+  (defun personal/set-frame-transparency ()
+    "Does what it says on the tin: sets transparency of the frame."
+    (interactive)
+    (if (y-or-n-p "Would you like to turn on frame transparency (Y), or disable it (N)?")
+        (let (
+  	    (transp-value '101)
+  	    )
+  	(while (or
+  		(< transp-value 0)
+  		(> transp-value 100))
+  	  (setq transp-value (read-number "Please input a valid transparency value (0-100) -> ")))
+  	(set-frame-parameter nil 'alpha transp-value)
+  	(message "Transparency has been set to: %s" transp-value))
+      (set-frame-parameter nil 'alpa '100)
+      )
+    )
+  (defun personal/smart-eval-buffer ()
+    "If in an elisp buffer, evaluates it.
+  If in an org-mode file, tries to find where it has tangled to, then evaluates that (if it's an elisp file).
+  If called with a prefix (C-u), evaluates the user's init file (given it's an elisp file)."
+    (interactive)
+    (cond
+     (current-prefix-arg
+      (cond
+       ((string= (file-name-extension user-init-file) "el")
+        (let ((init-buf-maybe (get-file-buffer user-init-file)))
+  	(when init-buf-maybe
+  	  (kill-buffer init-buf-maybe))
+  	(with-current-buffer (find-file-noselect user-init-file)
+  	(eval-buffer))))
+       ((string= (file-name-extension user-init-file) "elc")
+        (let* ((real-init-file-probably (concat (file-name-sans-extension user-init-file) ".el"))
+  	     (el-file-buffer-maybe (get-file-buffer el-real-init-file-probably)))
+  	    (when el-file-buffer-maybe
+  	      (with-current-buffer el-file-buffer-maybe
+  		(kill-buffer)))
+  	    (with-current-buffer (find-file-noselect real-init-file-probably)
+  	      (eval-buffer))))
+       (t
+        (message "Why is your init file set to something that isn't an elisp-type file???"))))
+     
+     ((or
+       (eq major-mode 'emacs-lisp-mode)
+       (eq major-mode 'lisp-interaction-mode))
+      (eval-buffer (current-buffer)))
+     
+     ((or
+       (eq major-mode 'org-mode)
+       (string= (file-name-extension (buffer-file-name (current-buffer))) "org"))
+      (let ((el-file-name nil))
+        (with-current-buffer (current-buffer)
+  	(save-excursion
+  	  (goto-char (point-min))
+  	  (setq el-file-name (buffer-substring-no-properties (search-forward ":header-args: :tangle ") (re-search-forward ".*\\.el")))))
+        (if (file-exists-p el-file-name)
+  	  (let ((el-file-buffer-maybe (get-file-buffer el-file-name)))
+  	    (when el-file-buffer-maybe
+  	      (with-current-buffer el-file-buffer-maybe
+  		(kill-buffer)))
+  	    (with-current-buffer (find-file-noselect el-file-name)
+  	      (eval-buffer)))
+  	(message "Could not find the tangled elisp file!"))))
+     ))
 
-  (keymap-global-set "C-c b" #'eval-buffer)
-  (keymap-global-set "C-c o b" #'personal-org-tangle-eval)
-  (keymap-global-set "C-c m i" #'personal-goto-init-file)
-  (keymap-global-set "C-c m o" #'personal-goto-init-literate-file)
-  (keymap-global-set "C-c m b" #'personal-quick-init-eval)
-  (keymap-global-set "C-z" #'other-window)
+  (keymap-global-set "C-c b" #'personal/smart-eval-buffer)
+  (keymap-global-set "C-c m i" #'personal/goto-init-file)
+  (keymap-global-set "C-c m o" #'personal/goto-init-literate-file)
   (keymap-global-set "M-o" #'other-window)
+  (keymap-global-set "C-z" #'undo)
+  (keymap-global-set "C-x C-z" #'undo-redo)
 #+end_src
 *** Completion goodies
 #+begin_src elisp
@@ -99,7 +161,7 @@
     (completion-styles '(orderless))
     (completion-category-defaults nil)
     )
-  
+
   (use-package vertico
     :ensure t
     :config
@@ -130,31 +192,31 @@ This is where snippets of elisp that I plan to use within configuration for othe
 Even though org-mode isn't exclusively for study/office work, I still think it's best to
 configure it within this section.
 #+begin_src elisp
-  (use-package org-mode
-    :hook (org-mode . org-indent-mode)
-    :custom
-    (org-startup-folded 'fold)
-    (org-startup-with-inline-images t)
-    (org-return-follows-link t)
-    (org-todo-keywords `(
-  		       (sequence "TODO" "|" "DONE")
-  		       (sequence "IMPORTANT" "|" "ACCOMPLISHED")))
-    (org-todo-keyword-faces `(
-  			    ("IMPORTANT" . "crimson")
-  			    ("ACCOMPLISHED" . "forest green")
-  			    ("DONE" . "forest green")))
-    )
+(use-package org-mode
+:hook (org-mode . org-indent-mode)
+:custom
+(org-startup-folded 'fold)
+(org-startup-with-inline-images t)
+(org-return-follows-link t)
+(org-todo-keywords `(
+(sequence "TODO" "|" "DONE")
+(sequence "IMPORTANT" "|" "ACCOMPLISHED")))
+(org-todo-keyword-faces `(
+("IMPORTANT" . "crimson")
+("ACCOMPLISHED" . "forest green")
+("DONE" . "forest green")))
+)
 #+end_srco
 *** Org-roam note taking
 #+begin_src elisp
-    (use-package org-roam
-      :ensure t
-      :custom
-      (org-roam-directory (expand-file-name "~/life/note-pool/"))
-      :bind ((:map org-mode-map
-    	       ("C-c r f" . org-roam-node-find)
-    	       ("C-c r s" . org-roam-db-sync)))
-      )
+  (use-package org-roam
+    :ensure t
+    :custom
+    (org-roam-directory (expand-file-name "~/life/note-pool/"))
+    :bind ((:map org-mode-map
+  	       ("C-c r f" . org-roam-node-find)
+  	       ("C-c r s" . org-roam-db-sync)))
+    )
 #+end_src
 ** Programming
 *** Overarching
@@ -172,9 +234,9 @@ configure it within this section.
          :branch "master")
     :bind (:map ctl-x-map
   	      ("p" . disproject-dispatch)))
-    
-    (use-package devdocs
-      :ensure t)
+
+  (use-package devdocs
+    :ensure t)
 #+end_src
 *** C
 #+begin_src elisp
@@ -325,7 +387,7 @@ configure it within this section.
   (use-package consult
     :ensure t
     :bind ("C-x C-b" . consult-buffer))
-  
+
   (use-package affe
     :ensure t
     :config
