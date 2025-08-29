@@ -348,16 +348,17 @@ configure it within this section.
 #+end_src
 *** Fuzzy-finding/Better finding with Consult
 #+begin_src elisp
-  (use-package consult
-    :ensure t
-    :bind ("C-x C-b" . consult-buffer))
+    (use-package consult
+      :ensure t
+      :bind (("C-x C-b" . consult-buffer)
+  	   ("C-s" . consult-line)))
 
-  (use-package affe
-    :ensure t
-    :config
-    (unless (shell-command-check "rg" "requires at least one pattern")
-      (setq affe-grep-command "grep -rZ --color=never --exclude-dir='.git' -n -v '^$' %s ."))
-    )
+    (use-package affe
+      :ensure t
+      :config
+      (unless (shell-command-check "rg" "requires at least one pattern")
+        (setq affe-grep-command "grep -rZ --color=never --exclude-dir='.git' -n -v '^$' %s ."))
+      )
 #+end_src
 *** Elisp debugging
 Some functions/variables that I'll use when testing out certain functionality
