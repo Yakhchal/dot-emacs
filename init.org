@@ -47,22 +47,6 @@
   (defun personal/goto-init-literate-file ()
     (interactive)
     (find-file (concat user-emacs-directory "init.org")))
-  (defun personal/set-frame-transparency ()
-    "Does what it says on the tin: sets transparency of the frame."
-    (interactive)
-    (if (y-or-n-p "Would you like to turn on frame transparency (Y), or disable it (N)?")
-        (let (
-  	    (transp-value '101)
-  	    )
-  	(while (or
-  		(< transp-value 0)
-  		(> transp-value 100))
-  	  (setq transp-value (read-number "Please input a valid transparency value (0-100) -> ")))
-  	(set-frame-parameter nil 'alpha transp-value)
-  	(message "Transparency has been set to: %s" transp-value))
-      (set-frame-parameter nil 'alpa '100)
-      )
-    )
   (defun personal/smart-eval-buffer ()
     "If in an elisp buffer, evaluates it.
   If in an org-mode file, tries to find where it has tangled to, then evaluates that (if it's an elisp file).
@@ -116,8 +100,6 @@
   (keymap-global-set "C-c m o" #'personal/goto-init-literate-file)
   (keymap-global-set "C-c m t" #'personal/set-frame-transparency)
   (keymap-global-set "M-o" #'other-window)
-  (keymap-global-set "C-z" #'undo)
-  (keymap-global-set "C-x C-z" #'undo-redo)
 #+end_src
 *** Completion goodies
 #+begin_src elisp
@@ -133,25 +115,38 @@
     :config
     (vertico-mode))
 
+  (use-package vertico-posframe
+    :ensure t
+    :config
+    (vertico-posframe-mode))
+
   (use-package marginalia
     :ensure t
     :config
     (marginalia-mode))
+
+  (use-package vundo
+    :ensure t
+    :bind (:map ctl-x-map
+  	      ("z" . vundo)))
 #+end_src
 *** Setup-Related Snippets
 This is where snippets of elisp that I plan to use within configuration for other packages will go.
 #+begin_src elisp
-  (defun shell-command-check (cmd expected-out)
-    "Calls CMD, then checks the output for EXPECTED-OUT.
-  If it's present, return the output, else return nil."
-    (let (
-  	(cmd-ret (shell-command-to-string cmd))
-  	)
-      (when (string-match-p (regexp-quote expected-out) cmd-ret)
-        cmd-ret
-        )
-      )
-    )
+  (defun shell-command-check (cmd expected-out &optional exclude)
+      "Calls CMD, then checks the output for EXPECTED-OUT.
+            If present, the function will return the output, else nil.
+      
+        If exclude is true, the opposite effect on the returning is done:
+    If the string is present, the response is nil, else the output is returned."
+      (let (
+            (cmd-ret (shell-command-to-string cmd))
+            )
+        (if exclude
+    	(unless (string-match-p (regexp-quote expected-out) cmd-ret)
+              cmd-ret)
+          (when (string-match-p (regexp-quote expected-out) cmd-ret)
+            cmd-ret))))
 #+end_src
 ** Formal
 *** Org-mode set up
@@ -159,7 +154,9 @@ Even though org-mode isn't exclusively for study/office work, I still think it's
 configure it within this section.
 #+begin_src elisp
 (use-package org-mode
-:hook (org-mode . org-indent-mode)
+:defer t
+:hook ((org-mode . org-indent-mode)
+(org-mode . auto-fill-mode))
 :custom
 (org-startup-folded 'fold)
 (org-startup-with-inline-images t)
@@ -173,6 +170,21 @@ configure it within this section.
 ("DONE" . "forest green")))
 )
 #+end_srco
+*** LaTeX rendering setup
+#+begin_src elisp
+    (use-package xenops
+      :ensure t
+      :after org-mode
+      :custom
+      (xenops-math-image-current-scale-factor 1.75)
+      :bind ((:map xenops-mode-map
+      	       ("C-c m r" . xenops-render)
+      	       ("C-c m u" . xenops-reveal)
+  	       ("C-c 1" . xenops-dwim))
+      	 (:map org-mode-map
+      	       ("C-c x" . xenops-mode)))
+      )
+#+end_src
 *** Org-roam note taking
 #+begin_src elisp
   (use-package org-roam
@@ -203,6 +215,16 @@ configure it within this section.
 
   (use-package devdocs
     :ensure t)
+
+  (use-package eglot
+    :ensure nil
+    :custom
+    (eglot-extend-to-xref t)
+    )
+
+  (use-package dape
+    :ensure t
+    )
 #+end_src
 *** C
 #+begin_src elisp
@@ -278,37 +300,6 @@ configure it within this section.
 #+end_src
 *** Communication/Viewing
 #+begin_src elisp
-  (defcustom gmail-directory nil
-    "Full directory wherein gmail was initialized using relevant tools.")
-
-  (defun gmailieer-sync ()
-    (interactive)
-    (let (
-  	(default-directory gmail-directory)
-  	(gmi-cmd-ret (shell-command-check "gmi sync" "pull:"))
-  	)
-      (if gmi-cmd-ret
-  	(message "Emails have been synced successfully!")
-        (message "Failed to sync emails."))
-      )
-    )
-
-  (use-package notmuch
-    :ensure t
-    :defer t
-    :bind (
-  	 (:map notmuch-hello-mode-map
-  	       ("C-c s" . gmailieer-sync))
-  	 (:map notmuch-search-mode-map
-  	       ("C-c s")
-  	       )
-  	 )
-    :custom
-    (notmuch-hello-mode-hook (lambda ()
-  			     (notmuch-search "all")))
-    (gmail-directory "/root/gmail/")
-    )
-
   (use-package erc
     :init
     (require 'erc-log)
@@ -328,6 +319,7 @@ configure it within this section.
 
   (use-package elfeed
     :ensure t
+    :defer t
     :custom
     (elfeed-feeds '(
   		  "https://planet.emacslife.com/atom.xml"
@@ -347,6 +339,12 @@ configure it within this section.
   (use-package try
     :ensure t
     :defer t)
+
+  (defun try-async ()
+  "'try-and-refresh', but it only prompts you after the package archives have been refreshed (asynchronously)."
+  (interactive)
+  (let ((package-refresh-contents-hook `(,@package-refresh-contents-hook (lambda (_arg) (try)))))
+    (package-refresh-contents t)))
 #+end_src
 *** Fuzzy-finding/Better finding with Consult
 #+begin_src elisp
@@ -360,4 +358,13 @@ configure it within this section.
     (unless (shell-command-check "rg" "requires at least one pattern")
       (setq affe-grep-command "grep -rZ --color=never --exclude-dir='.git' -n -v '^$' %s ."))
     )
+#+end_src
+*** Elisp debugging
+Some functions/variables that I'll use when testing out certain functionality
+#+begin_src elisp
+  (defun delete-all-packages ()
+    "Read the function name."
+    (interactive)
+    (when (y-or-n-p "Are you sure you want to delete all packages?")
+      (shell-command-to-string (concat "rm -r " (expand-file-name package-user-dir) "/*"))))
 #+end_src
