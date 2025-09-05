@@ -115,10 +115,11 @@
     :config
     (vertico-mode))
 
-  (use-package vertico-posframe
-    :ensure t
-    :config
-    (vertico-posframe-mode))
+  (when (display-graphic-p)
+    (use-package vertico-posframe
+      :ensure t
+      :config
+      (vertico-posframe-mode)))
 
   (use-package marginalia
     :ensure t
@@ -190,7 +191,7 @@ configure it within this section.
   (use-package org-roam
     :ensure t
     :custom
-    (org-roam-directory (expand-file-name "~/life/note-pool/"))
+    (org-roam-directory (expand-file-name "~/life/school/notes/"))
     :bind ((:map org-mode-map
   	       ("C-c r f" . org-roam-node-find)
   	       ("C-c r s" . org-roam-db-sync)))
@@ -198,6 +199,7 @@ configure it within this section.
 #+end_src
 ** Programming
 *** Overarching
+**** Version Control
 #+begin_src elisp
   (use-package magit
     :ensure t
@@ -205,32 +207,37 @@ configure it within this section.
   (use-package forge
     :ensure t
     :after magit)
-
+#+end_src
+**** Project support
+#+begin_src elisp
   (use-package disproject
     :vc (disproject
          :url "https://github.com/aurtzy/disproject"
          :branch "master")
     :bind (:map ctl-x-map
-  	      ("p" . disproject-dispatch)))
-
-  (use-package devdocs
-    :ensure t)
-
+    	      ("p" . disproject-dispatch)))
+#+end_src
+**** LSP and Documentation
+#+begin_src elisp
   (use-package eglot
     :ensure nil
     :custom
     (eglot-extend-to-xref t)
-    )
+    (eglot-autoshutdown t))
 
-  (use-package dape
+  (defun personal-devdocs-install-list (lang-list)
+    "Installs all languages passed into LANG-LIST (a list of strings which correspond to correctly-formatted programming language names)."
+    (dolist (lang-name lang-list)
+      (unless (file-exists-p (concat devdocs-data-dir "/" lang-name))
+        (devdocs-install lang-name))))
+  (use-package devdocs
     :ensure t
-    )
+    :config
+    (personal-devdocs-install-list '("c"))
+  )
 #+end_src
 *** C
 #+begin_src elisp
-  (unless (file-exists-p (concat devdocs-data-dir "/c"))
-    (devdocs-install "c"))
-
   (use-package rmsbolt
     :ensure t
     :bind ((:map c-mode-map
@@ -239,7 +246,7 @@ configure it within this section.
        	       ("C-c r" . rmsbolt))))
 
   (require 'cc-mode)
-  (add-hook 'c-mode-hook 'init--activate-lsp)
+  (add-hook 'c-mode-hook 'eglot-ensure)
   (defun c-quick-compile ()
     "Simply compiles the active C source file."
     (interactive)
@@ -249,10 +256,7 @@ configure it within this section.
   	 )
       (if (string= (file-name-extension file-name) "c")
   	(compile (concat "gcc " file-name " " flags " -o " (file-name-sans-extension file-name)) t)
-        (message "You're not in a C buffer! Why'd you even call this function?")
-        )
-      )
-    )
+        (message "You're not in a C buffer! Why'd you even call this function?"))))
   (define-key c-mode-map (kbd "C-c c") #'c-quick-compile)
 
   (use-package gdb-mi
@@ -263,8 +267,7 @@ configure it within this section.
     :bind ((:map c-mode-map
      	       ("C-c d" . 'gdb))
      	 (:map c++-mode-map
-     	       ("C-c d" . 'gdb)))
-    )
+     	       ("C-c d" . 'gdb))))
 #+end_src
 *** Common Lisp
 #+begin_src elisp
@@ -351,7 +354,7 @@ configure it within this section.
     (use-package consult
       :ensure t
       :bind (("C-x C-b" . consult-buffer)
-  	   ("C-s" . consult-line)))
+    	 ("C-s" . consult-line)))
 
     (use-package affe
       :ensure t
@@ -368,4 +371,29 @@ Some functions/variables that I'll use when testing out certain functionality
     (interactive)
     (when (y-or-n-p "Are you sure you want to delete all packages?")
       (shell-command-to-string (concat "rm -r " (expand-file-name package-user-dir) "/*"))))
+#+end_src
+*** Shell adjustments
+#+begin_src elisp
+    (use-package hide-mode-line
+      :ensure t
+      :after (:any shell eshell term))
+    
+  (use-package eshell
+    :ensure nil
+    :hook (eshell-mode . hide-mode-line-mode))
+  (use-package shell
+    :ensure nil
+    :hook (shell-mode . hide-mode-line-mode))
+  (use-package term
+    :ensure nil
+    :hook (eshell-mode . hide-mode-line-mode))
+#+end_src
+*** Fancy buffers
+#+begin_src elisp
+  (use-package buffer-box
+    :vc (:url "https://github.com/rougier/buffer-box.git"
+  	    :rev :newest)
+    :hook ((org-mode . buffer-box)
+  	 (prog-mode . buffer-box)
+  	 (special-mode . buffer-box)))
 #+end_src
