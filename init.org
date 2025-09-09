@@ -170,7 +170,7 @@ configure it within this section.
 ("ACCOMPLISHED" . "forest green")
 ("DONE" . "forest green")))
 )
-#+end_srco
+#+end_src
 *** LaTeX rendering setup
 #+begin_src elisp
     (use-package xenops
