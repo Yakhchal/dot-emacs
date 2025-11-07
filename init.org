@@ -1,291 +1,109 @@
-* init.el
+* Emacs Configuration (The Final One... Probably)
 :PROPERTIES:
 :header-args: :tangle init.el
 :END:
-** Core
-*** Base Emacs setup
+** Base
 #+begin_src elisp
-  ;;; -*- lexical-binding: t; -*-
+  ;; -*- lexical-binding: t; -*-
+  (defun personal/eval-buffer ()
+    "One-stop-shop for evaluating elisp quickly for me.
+  (Badly) implements evaluating the file that an org-mode file tangles into."
+    (interactive)
+    (cond
+     ((or (eq major-mode 'lisp-interaction-mode)
+  	(eq major-mode 'emacs-lisp-mode))
+      (eval-buffer (current-buffer)))
+     ((eq major-mode 'org-mode)
+      (save-excursion
+        (goto-char (point-min))
+        (if (re-search-forward ":tangle\s\\(.*\\)" nil t)
+  	  (load-file (match-string 1))
+  	(message "This org-mode file does not tangle into anything!"))))
+     (else (message "Evaluation failed."))))
+
   (require 'package)
-  (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+  (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/"))
   (unless (package-installed-p 'use-package)
     (package-install 'use-package))
+  (require 'use-package)
 
   (use-package emacs
+    :ensure t
+    :hook ((prog-mode . display-line-numbers-mode)
+  	 (after-init . (lambda () (dotimes (_ 2) (global-text-scale-adjust 2)))))
+    :bind (:map global-map
+  	      ("M-o" . other-window)
+  	      ("C-c b" . personal/eval-buffer))
     :custom
     (enable-recursive-minibuffers t)
     (completion-ignore-case t)
     (debug-on-error t)
     (warning-minimum-level :error)
-    (disabled-command-function nil))
-#+end_src
-*** Standard cosmetic modifications
-#+begin_src elisp
-  ;;; Core Emacs configuration
-  (tool-bar-mode -1)
-  (scroll-bar-mode -1)
-  (menu-bar-mode -1)
-  (blink-cursor-mode -1)
-  (minibuffer-depth-indicate-mode 1)
-  (global-hl-line-mode 1)
-  (add-hook 'prog-mode-hook #'display-line-numbers-mode)
-#+end_src
-*** User-Based Cosmetics
-#+begin_src elisp
-  (use-package ef-themes
+    (disabled-command-function nil)
+    :config
+    (tool-bar-mode -1)
+    (scroll-bar-mode -1)
+    (menu-bar-mode -1)
+    (blink-cursor-mode -1)
+    (global-hl-line-mode 1)
+    (minibuffer-depth-indicate-mode 1))
+
+  (use-package doom-themes
     :ensure t
     :config
-    (load-theme 'ef-melissa-light t))
-#+end_src
-*** Convenience bindings
-#+begin_src elisp
-  (defun personal/goto-init-file ()
-    (interactive)
-    (if (string= (file-name-extension user-init-file) "el")
-        (find-file user-init-file)
-      (find-file (concat user-emacs-directory "init.el"))))
-  (defun personal/goto-init-literate-file ()
-    (interactive)
-    (find-file (concat user-emacs-directory "init.org")))
-  (defun personal/smart-eval-buffer ()
-    "If in an elisp buffer, evaluates it.
-  If in an org-mode file, tries to find where it has tangled to, then evaluates that (if it's an elisp file).
-  If called with a prefix (C-u), evaluates the user's init file (given it's an elisp file)."
-    (interactive)
-    (cond
-     (current-prefix-arg
-      (cond
-       ((string= (file-name-extension user-init-file) "el")
-        (let ((init-buf-maybe (get-file-buffer user-init-file)))
-  	(when init-buf-maybe
-  	  (kill-buffer init-buf-maybe))
-  	(with-current-buffer (find-file-noselect user-init-file)
-  	(eval-buffer))))
-       ((string= (file-name-extension user-init-file) "elc")
-        (let* ((real-init-file-probably (concat (file-name-sans-extension user-init-file) ".el"))
-  	     (el-file-buffer-maybe (get-file-buffer el-real-init-file-probably)))
-  	    (when el-file-buffer-maybe
-  	      (with-current-buffer el-file-buffer-maybe
-  		(kill-buffer)))
-  	    (with-current-buffer (find-file-noselect real-init-file-probably)
-  	      (eval-buffer))))
-       (t
-        (message "Why is your init file set to something that isn't an elisp-type file???"))))
-     
-     ((or
-       (eq major-mode 'emacs-lisp-mode)
-       (eq major-mode 'lisp-interaction-mode))
-      (eval-buffer (current-buffer)))
-     
-     ((or
-       (eq major-mode 'org-mode)
-       (string= (file-name-extension (buffer-file-name (current-buffer))) "org"))
-      (let ((el-file-name nil))
-        (with-current-buffer (current-buffer)
-  	(save-excursion
-  	  (goto-char (point-min))
-  	  (setq el-file-name (buffer-substring-no-properties (search-forward ":header-args: :tangle ") (re-search-forward ".*\\.el")))))
-        (if (file-exists-p el-file-name)
-  	  (let ((el-file-buffer-maybe (get-file-buffer el-file-name)))
-  	    (when el-file-buffer-maybe
-  	      (with-current-buffer el-file-buffer-maybe
-  		(kill-buffer)))
-  	    (with-current-buffer (find-file-noselect el-file-name)
-  	      (eval-buffer)))
-  	(message "Could not find the tangled elisp file!"))))
-     ))
+    (load-theme 'doom-ayu-mirage t))
 
-  (keymap-global-set "C-c b" #'personal/smart-eval-buffer)
-  (keymap-global-set "C-c m i" #'personal/goto-init-file)
-  (keymap-global-set "C-c m o" #'personal/goto-init-literate-file)
-  (keymap-global-set "C-c m t" #'personal/set-frame-transparency)
-  (keymap-global-set "M-o" #'other-window)
+  (use-package org-mode
+    :defer t
+    :hook (org-mode . org-indent-mode)
+    :custom
+    (org-return-follows-link t)
+    (org-startup-with-inline-images t))
 #+end_src
-*** Completion goodies
+** Conveniences
 #+begin_src elisp
   (use-package orderless
     :ensure t
     :custom
-    (completion-styles '(orderless))
-    (completion-category-defaults nil)
-    )
+    (completion-styles '(orderless)))
 
   (use-package vertico
     :ensure t
     :config
-    (vertico-mode))
-
-  (when (display-graphic-p)
-    (use-package vertico-posframe
-      :ensure t
-      :config
-      (vertico-posframe-mode)))
+    (vertico-mode 1))
 
   (use-package marginalia
     :ensure t
     :config
-    (marginalia-mode))
+    (marginalia-mode 1))
+
+  (use-package consult
+    :ensure t)
+
+  (use-package popper
+    :ensure t
+    :bind (("C--" . popper-toggle)
+  	 ("M--" . popper-cycle)
+  	 ("C-M--" . popper-toggle-type))
+    :config
+    (popper-mode 1)
+    (popper-echo-mode 1))
 
   (use-package vundo
     :ensure t
-    :bind (:map ctl-x-map
-  	      ("z" . vundo)))
+    :bind ("C-z" . vundo))
 #+end_src
-*** Setup-Related Snippets
-This is where snippets of elisp that I plan to use within configuration for other packages will go.
-#+begin_src elisp
-  (defun shell-command-check (cmd expected-out &optional exclude)
-      "Calls CMD, then checks the output for EXPECTED-OUT.
-            If present, the function will return the output, else nil.
-      
-        If exclude is true, the opposite effect on the returning is done:
-    If the string is present, the response is nil, else the output is returned."
-      (let (
-            (cmd-ret (shell-command-to-string cmd))
-            )
-        (if exclude
-    	(unless (string-match-p (regexp-quote expected-out) cmd-ret)
-              cmd-ret)
-          (when (string-match-p (regexp-quote expected-out) cmd-ret)
-            cmd-ret))))
-#+end_src
-** Formal
-*** Org-mode set up
-Even though org-mode isn't exclusively for study/office work, I still think it's best to
-configure it within this section.
-#+begin_src elisp
-(use-package org-mode
-:defer t
-:hook ((org-mode . org-indent-mode)
-(org-mode . auto-fill-mode))
-:custom
-(org-startup-folded 'fold)
-(org-startup-with-inline-images t)
-(org-return-follows-link t)
-(org-todo-keywords `(
-(sequence "TODO" "|" "DONE")
-(sequence "IMPORTANT" "|" "ACCOMPLISHED")))
-(org-todo-keyword-faces `(
-("IMPORTANT" . "crimson")
-("ACCOMPLISHED" . "forest green")
-("DONE" . "forest green")))
-)
-#+end_src
-*** LaTeX rendering setup
-#+begin_src elisp
-    (use-package xenops
-      :ensure t
-      :after org-mode
-      :custom
-      (xenops-math-image-current-scale-factor 1.75)
-      :bind ((:map xenops-mode-map
-      	       ("C-c m r" . xenops-render)
-      	       ("C-c m u" . xenops-reveal)
-  	       ("C-c 1" . xenops-dwim))
-      	 (:map org-mode-map
-      	       ("C-c x" . xenops-mode)))
-      )
-#+end_src
-*** Org-roam note taking
-#+begin_src elisp
-  (use-package org-roam
-    :ensure t
-    :custom
-    (org-roam-directory (expand-file-name "~/life/school/notes/"))
-    :bind ((:map org-mode-map
-  	       ("C-c r f" . org-roam-node-find)
-  	       ("C-c r s" . org-roam-db-sync)))
-    )
-#+end_src
-** Programming
-*** Overarching
-**** Version Control
+** Programming Packages
 #+begin_src elisp
   (use-package magit
     :ensure t
     :defer t)
-  (use-package forge
-    :ensure t
-    :after magit)
-#+end_src
-**** Project support
-#+begin_src elisp
-  (use-package disproject
-    :vc (disproject
-         :url "https://github.com/aurtzy/disproject"
-         :branch "master")
-    :bind (:map ctl-x-map
-    	      ("p" . disproject-dispatch)))
-#+end_src
-**** LSP and Documentation
-#+begin_src elisp
   (use-package eglot
-    :ensure nil
     :custom
     (eglot-extend-to-xref t)
     (eglot-autoshutdown t))
-
-  (defun personal-devdocs-install-list (lang-list)
-    "Installs all languages passed into LANG-LIST (a list of strings which correspond to correctly-formatted programming language names)."
-    (dolist (lang-name lang-list)
-      (unless (file-exists-p (concat devdocs-data-dir "/" lang-name))
-        (devdocs-install lang-name))))
-  (use-package devdocs
-    :ensure t
-    :config
-    (personal-devdocs-install-list '("c"))
-  )
 #+end_src
-*** C
-#+begin_src elisp
-  (use-package rmsbolt
-    :ensure t
-    :bind ((:map c-mode-map
-       	       ("C-c r" . rmsbolt))
-       	 (:map c++-mode-map
-       	       ("C-c r" . rmsbolt))))
-
-  (require 'cc-mode)
-  (add-hook 'c-mode-hook 'eglot-ensure)
-  (defun c-quick-compile ()
-    "Simply compiles the active C source file."
-    (interactive)
-    (let* (
-  	 (flags "-g -Wall -Wextra -O0")
-  	 (file-name (buffer-file-name (current-buffer)))
-  	 )
-      (if (string= (file-name-extension file-name) "c")
-  	(compile (concat "gcc " file-name " " flags " -o " (file-name-sans-extension file-name)) t)
-        (message "You're not in a C buffer! Why'd you even call this function?"))))
-  (define-key c-mode-map (kbd "C-c c") #'c-quick-compile)
-
-  (use-package gdb-mi
-    :custom
-    (gdb-many-windows t)
-    (gdb-show-maint t)
-    (gdb-restore-window-configuration-after-quit t)
-    :bind ((:map c-mode-map
-     	       ("C-c d" . 'gdb))
-     	 (:map c++-mode-map
-     	       ("C-c d" . 'gdb))))
-#+end_src
-*** Common Lisp
-#+begin_src elisp
-  (use-package slime
-    :ensure t
-    :commands slime
-    :init
-    (setq inferior-lisp-program "sbcl")
-    :config
-    (slime-setup))
-#+end_src
-*** Misc Smaller Languages
-#+begin_src elisp
-  (use-package powershell
-    :ensure t)
-#+end_src
-** Misc
-*** Fun
+** Fun
 #+begin_src elisp
   (use-package tetris
     :bind (:map tetris-mode-map
@@ -293,107 +111,19 @@ configure it within this section.
   	      ("a" . tetris-move-left)
   	      ("s" . tetris-move-down)
   	      ("d" . tetris-move-right)
-  	      ("e" . tetris-move-bottom)))
+  	      ("e" . tetris-move-bottom))
+    :defer t)
+
   (use-package snake
     :bind (:map snake-mode-map
   	      ("w" . snake-move-up)
   	      ("a" . snake-move-left)
   	      ("s" . snake-move-down)
-  	      ("d" . snake-move-right)))
-#+end_src
-*** Communication/Viewing
-#+begin_src elisp
-  (use-package erc
-    :init
-    (require 'erc-log)
-    :commands erc
-    :custom
-    (erc-nick "yakh")
-    (erc-server "irc.libera.chat")
-    (erc-port 6667)
-    (erc-log-channels-directory "~/.emacs.d/erc-logs/")
-    (erc-save-buffer-on-part t)
-    (erc-save-queries-on-quit t)
-    (erc-log-write-after-send t)
-    (erc-log-write-after-insert t)
-    :config
-    (add-to-list 'erc-modules 'log t)
-    (erc-update-modules))
-
-  (use-package elfeed
-    :ensure t
-    :defer t
-    :custom
-    (elfeed-feeds '(
-  		  "https://planet.emacslife.com/atom.xml"
-  		  "https://raw.githubusercontent.com/francisrstokes/githublog/main/feed.xml"
-  		  "https://joshblais.com/index.xml"
-  		  ))
-    )
-#+end_src
-*** Faster movement
-#+begin_src elisp
-  (use-package avy
-    :ensure t
-    :bind (("C-;" . avy-goto-char-2)))
-#+end_src
-*** Trying new packages
-#+begin_src elisp
-  (use-package try
-    :ensure t
+  	      ("d" . snake-move-right))
     :defer t)
 
-  (defun try-async ()
-  "'try-and-refresh', but it only prompts you after the package archives have been refreshed (asynchronously)."
-  (interactive)
-  (let ((package-refresh-contents-hook `(,@package-refresh-contents-hook (lambda (_arg) (try)))))
-    (package-refresh-contents t)))
-#+end_src
-*** Fuzzy-finding/Better finding with Consult
-#+begin_src elisp
-    (use-package consult
-      :ensure t
-      :bind (("C-x C-b" . consult-buffer)
-    	 ("C-s" . consult-line)))
-
-    (use-package affe
-      :ensure t
-      :config
-      (unless (shell-command-check "rg" "requires at least one pattern")
-        (setq affe-grep-command "grep -rZ --color=never --exclude-dir='.git' -n -v '^$' %s ."))
-      )
-#+end_src
-*** Elisp debugging
-Some functions/variables that I'll use when testing out certain functionality
-#+begin_src elisp
-  (defun delete-all-packages ()
-    "Read the function name."
-    (interactive)
-    (when (y-or-n-p "Are you sure you want to delete all packages?")
-      (shell-command-to-string (concat "rm -r " (expand-file-name package-user-dir) "/*"))))
-#+end_src
-*** Shell adjustments
-#+begin_src elisp
-    (use-package hide-mode-line
-      :ensure t
-      :after (:any shell eshell term))
-    
-  (use-package eshell
-    :ensure nil
-    :hook (eshell-mode . hide-mode-line-mode))
-  (use-package shell
-    :ensure nil
-    :hook (shell-mode . hide-mode-line-mode))
-  (use-package term
-    :ensure nil
-    :hook (eshell-mode . hide-mode-line-mode))
-#+end_src
-*** Fancy buffers
-#+begin_src elisp
-  (use-package buffer-box
-    :vc (:url "https://github.com/rougier/buffer-box.git"
-  	    :rev :newest)
-    :hook ((org-mode . buffer-box)
-  	 (prog-mode . buffer-box)
-  	 (special-mode . buffer-box)))
+  (use-package erc
+    :defer t
+    :custom
+    (erc-nick "yakh"))
 #+end_src
