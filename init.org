@@ -40,6 +40,7 @@
     (debug-on-error t)
     (warning-minimum-level :error)
     (disabled-command-function nil)
+    (visible-bell t)
     :config
     (tool-bar-mode -1)
     (scroll-bar-mode -1)
