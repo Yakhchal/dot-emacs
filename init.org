@@ -51,8 +51,8 @@
 
   (use-package doom-themes
     :ensure t
-    :config
-    (load-theme 'doom-ayu-mirage t))
+    :hook
+    (after-init . (lambda () (load-theme 'doom-ayu-mirage t))))
 
   (use-package org-mode
     :defer t
@@ -96,13 +96,35 @@
 #+end_src
 ** Programming Packages
 #+begin_src elisp
+  (use-package eshell
+    :ensure t)
+
   (use-package magit
     :ensure t
     :defer t)
+
   (use-package eglot
+    :hook ((c-mode . eglot-ensure)
+  	 )
     :custom
     (eglot-extend-to-xref t)
     (eglot-autoshutdown t))
+
+  (use-package corfu
+    :ensure t
+    :hook ((sly-mrepl . corfu-mode)
+  	 (lisp-mode . corfu-mode)
+  	 (eglot-managed-mode . corfu-mode))
+    :custom
+    (corfu-auto t)
+    (corfu-auto-delay 0.1)
+    (corfu-auto-prefix 1))
+
+  (use-package sly
+    :ensure t
+    :defer t
+    :custom
+    (inferior-lisp-program "sbcl"))
 #+end_src
 ** Fun
 #+begin_src elisp
