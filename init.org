@@ -59,40 +59,62 @@
     :hook (org-mode . org-indent-mode)
     :custom
     (org-return-follows-link t)
-    (org-startup-with-inline-images t))
+    (org-startup-with-inline-images t)
+    (org-hide-emphasis-markers t)
+    :config
+    ;;; These (especially 'org-format-latex-options') behave weirdly when placed in ':custom'.
+    (setopt org-latex-create-formula-image-program 'dvisvgm)
+    (setopt org-format-latex-options (plist-put org-format-latex-options :scale 3)))
+#+end_src
+** Studies
+#+begin_src elisp
+  (let ((org-path (concat user-emacs-directory "study/")))
+    (unless (file-exists-p org-path)
+      (mkdir org-path)))
+
+  (use-package org-roam
+    :ensure t
+    :defer t
+    :bind (("C-c m r" . org-roam-node-find)
+    	 ("C-c m i" . org-roam-node-insert))
+    :custom
+    (org-roam-directory (concat user-emacs-directory "study/"))
+    :config
+    (org-roam-db-autosync-mode 1))
 #+end_src
 ** Conveniences
 #+begin_src elisp
-  (use-package orderless
-    :ensure t
-    :custom
-    (completion-styles '(orderless)))
+      (use-package orderless
+        :ensure t
+        :custom
+        (completion-styles '(orderless)))
 
-  (use-package vertico
-    :ensure t
-    :config
-    (vertico-mode 1))
+      (use-package vertico
+        :ensure t
+        :config
+        (vertico-mode 1))
 
-  (use-package marginalia
-    :ensure t
-    :config
-    (marginalia-mode 1))
+      (use-package marginalia
+        :ensure t
+        :config
+        (marginalia-mode 1))
 
-  (use-package consult
-    :ensure t)
+      (use-package consult
+        :ensure t
+        :bind ("C-M-s" . consult-line))
 
-  (use-package popper
-    :ensure t
-    :bind (("C--" . popper-toggle)
-  	 ("M--" . popper-cycle)
-  	 ("C-M--" . popper-toggle-type))
-    :config
-    (popper-mode 1)
-    (popper-echo-mode 1))
+      (use-package popper
+        :ensure t
+        :bind (("C--" . popper-toggle)
+      	 ("M--" . popper-cycle)
+      	 ("C-M--" . popper-toggle-type))
+        :config
+        (popper-mode 1)
+        (popper-echo-mode 1))
 
-  (use-package vundo
-    :ensure t
-    :bind ("C-z" . vundo))
+      (use-package vundo
+        :ensure t
+        :bind ("C-z" . vundo))
 #+end_src
 ** Programming Packages
 #+begin_src elisp
@@ -112,9 +134,10 @@
 
   (use-package corfu
     :ensure t
-    :hook ((sly-mrepl . corfu-mode)
-  	 (lisp-mode . corfu-mode)
+    :hook ((lisp-mode . corfu-mode)
   	 (eglot-managed-mode . corfu-mode))
+    :bind (:map corfu-map
+  	      ("RET" . nil))
     :custom
     (corfu-auto t)
     (corfu-auto-delay 0.1)
@@ -123,6 +146,9 @@
   (use-package sly
     :ensure t
     :defer t
+    :hook (sly-mrepl . corfu-mode)
+    :bind (:map lisp-mode-map
+  	      ("C-c b" . sly-eval-buffer))
     :custom
     (inferior-lisp-program "sbcl"))
 #+end_src
