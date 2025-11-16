@@ -84,44 +84,44 @@
 #+end_src
 ** Conveniences
 #+begin_src elisp
-      (use-package orderless
-        :ensure t
-        :custom
-        (completion-styles '(orderless)))
+            (use-package orderless
+              :ensure t
+              :custom
+              (completion-styles '(orderless)))
 
-      (use-package vertico
-        :ensure t
-        :config
-        (vertico-mode 1))
+            (use-package vertico
+              :ensure t
+              :config
+              (vertico-mode 1))
 
-      (use-package marginalia
-        :ensure t
-        :config
-        (marginalia-mode 1))
+            (use-package marginalia
+              :ensure t
+              :config
+              (marginalia-mode 1))
 
-      (use-package consult
-        :ensure t
-        :bind ("C-M-s" . consult-line))
+            (use-package consult
+              :ensure t
+              :bind ((:map global-map
+      		    ("C-M-s" . consult-line))
+    		 (:map minibuffer-mode-map
+  		       ("C-M-s" . consult-history))))
 
-      (use-package popper
-        :ensure t
-        :bind (("C--" . popper-toggle)
-      	 ("M--" . popper-cycle)
-      	 ("C-M--" . popper-toggle-type))
-        :config
-        (popper-mode 1)
-        (popper-echo-mode 1))
+            (use-package popper
+              :ensure t
+              :bind (("C--" . popper-toggle)
+            	 ("M--" . popper-cycle)
+            	 ("C-M--" . popper-toggle-type))
+              :config
+              (popper-mode 1)
+              (popper-echo-mode 1))
 
-      (use-package vundo
-        :ensure t
-        :bind ("C-z" . vundo))
+            (use-package vundo
+              :ensure t
+              :bind ("C-z" . vundo))
 #+end_src
 ** Programming Packages
 #+begin_src elisp
-  (use-package eshell
-    :ensure t)
-
-  (use-package magit
+(use-package magit
     :ensure t
     :defer t)
 
